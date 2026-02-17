@@ -1,0 +1,5 @@
+{
+  "name": "DirectPulse Triage",
+  "description": "An AI-powered medical triage assistant that analyzes symptoms, determines severity, and routes patients to the appropriate medical department.",
+  "requestFramePermissions": []
+}
