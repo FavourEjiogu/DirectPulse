@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { UserRole, User, PatientProfile } from '../types';
 import SpecialistGrid from './SpecialistGrid';
 import { appStore } from '../services/store';
-import { supabase } from '../services/supabaseClient';
+import { auth } from '../services/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Upload, Sparkles, Check, Play, Star, Loader2 } from 'lucide-react';
 
 interface AuthProps {
@@ -35,50 +36,57 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
 
     try {
-        // 1. Attempt Supabase Login
-        const { data, error: authError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        // 1. Attempt Firebase Login
+        // We only attempt Firebase login if it's a client OR if we have setup staff accounts in Firebase.
+        // For this demo, we assume staff accounts are still mocked in appStore unless explicitly migrated.
+        // However, to support mixed mode, we try Firebase first, then fallback to mock.
 
-        if (data.user) {
-             const metadata = data.user.user_metadata || {};
-             const profileData = metadata.profile || {};
+        let firebaseUser = null;
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            firebaseUser = userCredential.user;
+        } catch (fbError: any) {
+            // Ignore if user not found, might be a mock user
+            if (fbError.code !== 'auth/user-not-found' && fbError.code !== 'auth/invalid-credential' && fbError.code !== 'auth/invalid-email') {
+                 console.error("Firebase Login Error:", fbError);
+            }
+        }
+
+        if (firebaseUser) {
+             // We don't have custom claims easily accessible without cloud functions,
+             // so we assume Firebase users are Clients for this demo unless we store role in DB.
+             // For simplicity, we construct a client user.
+
+             // Note: In a real app, you'd fetch the user profile from Firestore here.
+             // We will mock the profile part or use what we can get from Auth (displayName).
 
              const user: User = {
-                 id: data.user.id,
-                 email: data.user.email!,
-                 name: metadata.name || email.split('@')[0],
-                 role: (metadata.role as UserRole) || 'client',
+                 id: firebaseUser.uid,
+                 email: firebaseUser.email!,
+                 name: firebaseUser.displayName || email.split('@')[0],
+                 role: 'client', // Default for Firebase users
                  profile: {
-                     allergies: profileData.allergies || '',
-                     hmoProvider: profileData.hmoProvider || '',
-                     hmoNumber: profileData.hmoNumber || '',
-                     emergencyContactName: profileData.emergencyContactName || '',
-                     emergencyContactPhone: profileData.emergencyContactPhone || '',
-                     dob: profileData.dob || '',
-                     pfpUrl: profileData.pfpUrl
+                     allergies: '', // Would come from DB
+                     hmoProvider: '',
+                     hmoNumber: '',
+                     emergencyContactName: '',
+                     emergencyContactPhone: '',
+                     dob: '',
+                     pfpUrl: firebaseUser.photoURL || undefined
                  }
              };
 
-             // Check role if strictly logging in as staff
              if (selectedRole && user.role !== selectedRole && selectedRole !== 'client') {
                  setError(`Incorrect role. This account is not a ${selectedRole}.`);
                  setLoading(false);
                  return;
              }
 
-             // Hydrate local store for compatibility
-             // We can't easily inject into the private array of Store,
-             // but we can ensure the app treats this user as logged in.
-             // We might need to add a method to Store to set current user from external source.
-             // For now, passing it to onLogin handles the React state.
              onLogin(user);
              return;
         }
 
-        // 2. Fallback to Mock Login if Supabase fails or returns no user (e.g. invalid credentials for Supabase)
-        // This is important for the demo staff accounts to still work.
+        // 2. Fallback to Mock Login if Firebase fails or returns no user
         const mockUser = appStore.login(email, password);
         if (mockUser) {
              if (selectedRole && mockUser.role !== selectedRole && selectedRole !== 'client') {
@@ -90,21 +98,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             return;
         }
 
-        // If neither worked
-        if (authError) {
-             throw new Error(authError.message);
-        }
         setError('Invalid credentials.');
 
     } catch (err: any) {
         console.error(err);
-        // Fallback for network errors or unconfigured Supabase
-        const mockUser = appStore.login(email, password);
-        if (mockUser) {
-             onLogin(mockUser);
-        } else {
-             setError(err.message || 'Login failed.');
-        }
+        setError(err.message || 'Login failed.');
     } finally {
         setLoading(false);
     }
@@ -115,78 +113,27 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
 
     try {
-        // Attempt Supabase Signup
-        const { data, error } = await supabase.auth.signUp({
-            email: formData.email,
-            password: formData.password,
-            options: {
-                data: {
-                    name: formData.name,
-                    role: 'client',
-                    profile: {
-                        allergies: formData.allergies,
-                        hmoProvider: formData.hmoProvider,
-                        hmoNumber: formData.hmoNumber,
-                        emergencyContactName: formData.emergencyContactName,
-                        emergencyContactPhone: formData.emergencyContactPhone,
-                        dob: formData.dob,
-                        pfpUrl: selectedPfp
-                    }
-                }
-            }
+        // Attempt Firebase Signup
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
+
+        // Update Profile
+        await updateProfile(user, {
+            displayName: formData.name,
+            photoURL: selectedPfp
         });
 
-        if (error) throw error;
+        // Send Verification Email
+        await sendEmailVerification(user);
+        setVerificationSent(true);
 
-        if (data.user) {
-             // Supabase defaults to requiring email confirmation
-             setVerificationSent(true);
-             // We also create a local mock user so the flow continues if they are auto-confirmed (depends on Supabase settings)
-             // But usually they aren't.
-
-             // If the session exists immediately (Auto-confirm enabled), log them in
-             if (data.session) {
-                 const newUser: User = {
-                    id: data.user.id,
-                    name: formData.name,
-                    email: formData.email,
-                    role: 'client',
-                    profile: {
-                        allergies: formData.allergies,
-                        hmoProvider: formData.hmoProvider,
-                        hmoNumber: formData.hmoNumber,
-                        emergencyContactName: formData.emergencyContactName,
-                        emergencyContactPhone: formData.emergencyContactPhone,
-                        dob: formData.dob,
-                        pfpUrl: selectedPfp
-                    }
-                };
-                onLogin(newUser);
-             }
-        } else {
-             // Fallback for demo if Supabase is not configured
-             const newUser = appStore.signup({
-                name: formData.name,
-                email: formData.email,
-                password: formData.password,
-                role: 'client',
-                profile: {
-                    allergies: formData.allergies,
-                    hmoProvider: formData.hmoProvider,
-                    hmoNumber: formData.hmoNumber,
-                    emergencyContactName: formData.emergencyContactName,
-                    emergencyContactPhone: formData.emergencyContactPhone,
-                    dob: formData.dob,
-                    pfpUrl: selectedPfp
-                }
-            });
-            onLogin(newUser);
-        }
+        // Note: In a real app, we would save the extra profile data (allergies, etc.) to Firestore here.
+        // For this demo, we will rely on the local store for the session or just basic auth data.
 
     } catch (err: any) {
-        console.error("Supabase Signup Error:", err);
-        // Fallback to local store
-        if (err.message?.includes('apikey') || err.message?.includes('fetch')) {
+        console.error("Firebase Signup Error:", err);
+        // Fallback to local store if Firebase is not configured (e.g. invalid API key)
+        if (err.code === 'auth/invalid-api-key' || err.message?.includes('apiKey')) {
              const newUser = appStore.signup({
                 name: formData.name,
                 email: formData.email,
