@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TriageRequest } from '../../types';
 import { appStore } from '../../services/store';
+import { toast } from '../../services/toastService';
 import { Truck, MapPin, CheckCircle, Lock, Phone } from 'lucide-react';
 
 const RiderPortal: React.FC = () => {
@@ -19,7 +20,7 @@ const RiderPortal: React.FC = () => {
         // Validate code
         const code = inputCode[id];
         if (!appStore.verifyDeliveryCode(id, code)) {
-            alert("Invalid Delivery Code. Ask customer for the 4-digit pin.");
+            toast.error("Invalid Delivery Code. Ask customer for the 4-digit pin.");
             return;
         }
     }

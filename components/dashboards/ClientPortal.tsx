@@ -3,6 +3,7 @@ import SymptomInput from '../SymptomInput';
 import AnalysisResult from '../AnalysisResult';
 import { TriageRequest, User } from '../../types';
 import { appStore } from '../../services/store';
+import { toast } from '../../services/toastService';
 import { analyzeSymptoms } from '../../services/geminiService';
 import { Clock, CheckCircle, Share2, Download, CreditCard, Lock, Sparkles, MapPin, Truck } from 'lucide-react';
 
@@ -52,7 +53,7 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
       setActiveTab('history');
     } catch (error) {
       console.error(error);
-      alert("Failed to process triage request.");
+      toast.error("Failed to process triage request.");
     } finally {
       setLoading(false);
     }
@@ -70,15 +71,60 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
       const mockPfp = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + Date.now();
       appStore.updateUserProfile(user.id, { profile: { ...user.profile!, pfpUrl: mockPfp } });
       onRefreshUser();
-      alert("AI Avatar Generated Successfully!");
+      toast.success("AI Avatar Generated Successfully!");
   };
 
-  const handleShare = () => {
-      alert("Consultation summary link copied to clipboard!");
+  const handleShare = async (req: TriageRequest) => {
+      const shareText = `DirectPulse Consultation Summary\nDate: ${new Date(req.timestamp).toLocaleDateString()}\nPatient: ${req.patientName}\nSymptoms: ${req.symptoms}\nStatus: ${req.status}\nPrescription: ${req.prescription || 'Pending'}`;
+      try {
+          await navigator.clipboard.writeText(shareText);
+          toast.success("Consultation summary copied to clipboard!");
+      } catch (err) {
+          toast.error("Failed to copy to clipboard.");
+      }
   }
 
-  const handleDownload = () => {
-      alert("Downloading medical report PDF...");
+  const handleDownload = (req: TriageRequest) => {
+      toast.info("Downloading medical report...");
+      const report = `
+DIRECTPULSE MEDICAL REPORT
+==========================
+Date: ${new Date(req.timestamp).toLocaleString()}
+Patient ID: ${req.patientId}
+Patient Name: ${req.patientName}
+
+SYMPTOMS
+--------
+${req.symptoms}
+
+AI TRIAGE ANALYSIS
+------------------
+Severity: ${req.severity}
+Recommended Dept: ${req.aiAnalysis?.recommended_department || 'N/A'}
+Summary: ${req.aiAnalysis?.patient_summary || 'N/A'}
+
+PRESCRIPTION
+------------
+${req.prescription || 'None prescribed yet.'}
+
+DOCTOR NOTES
+------------
+${req.doctorNotes || 'None.'}
+
+STATUS
+------
+${req.status}
+      `;
+
+      const blob = new Blob([report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Medical_Report_${req.id}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   }
 
   return (
@@ -137,8 +183,8 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
                   <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <span className="text-xs font-bold text-gray-500">{new Date(req.timestamp).toLocaleDateString()} at {new Date(req.timestamp).toLocaleTimeString()}</span>
                     <div className="flex gap-2">
-                        <button onClick={handleShare} className="text-gray-400 hover:text-teal-600" title="Share"><Share2 size={16} /></button>
-                        <button onClick={handleDownload} className="text-gray-400 hover:text-teal-600" title="Download PDF"><Download size={16} /></button>
+                        <button onClick={() => handleShare(req)} className="text-gray-400 hover:text-teal-600" title="Share"><Share2 size={16} /></button>
+                        <button onClick={() => handleDownload(req)} className="text-gray-400 hover:text-teal-600" title="Download Report"><Download size={16} /></button>
                     </div>
                   </div>
                   
@@ -154,6 +200,19 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
                              </span>
                            )}
                       </div>
+
+                      {/* Prescription Display */}
+                      {req.prescription && (
+                          <div className="mt-3 mb-4 p-3 bg-gray-50 border border-gray-100 rounded-lg flex gap-3 items-start">
+                              {req.drugImageUrl && (
+                                  <img src={req.drugImageUrl} alt="Medication" className="w-16 h-16 object-cover rounded-md border border-gray-200 bg-white" />
+                              )}
+                              <div>
+                                  <p className="text-xs font-bold text-gray-500 uppercase">Prescribed Medication</p>
+                                  <p className="text-sm font-medium text-gray-900">{req.prescription}</p>
+                              </div>
+                          </div>
+                      )}
 
                       {/* Payment & Logistics Flow */}
                       {(req.status === 'awaiting_payment' || req.status === 'prescribed') && req.prescription && (

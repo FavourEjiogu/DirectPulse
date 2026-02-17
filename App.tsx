@@ -5,6 +5,8 @@ import ClientPortal from './components/dashboards/ClientPortal';
 import DoctorPortal from './components/dashboards/DoctorPortal';
 import PharmacistPortal from './components/dashboards/PharmacistPortal';
 import RiderPortal from './components/dashboards/RiderPortal';
+import ToastContainer from './components/ToastContainer';
+import { toast } from './services/toastService';
 import { appStore } from './services/store';
 import { User, UserRole } from './types';
 import { AlertTriangle } from 'lucide-react';
@@ -25,7 +27,7 @@ const App: React.FC = () => {
   const handleEmergencyTrigger = () => {
       setShowEmergency(true);
       setTimeout(() => {
-          alert("Emergency Services Dispatched to your location (Simulated).");
+          toast.success("Emergency Services Dispatched to your location (Simulated).");
           setShowEmergency(false);
       }, 3000);
   };
@@ -74,6 +76,8 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {renderDashboard()}
       </main>
+
+      <ToastContainer />
     </div>
   );
 };

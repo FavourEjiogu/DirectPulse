@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { UserRole, User } from '../types';
+import { UserRole, User, PatientProfile } from '../types';
 import SpecialistGrid from './SpecialistGrid';
 import { appStore } from '../services/store';
-import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Upload, Sparkles, Check, Play, Star } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
+import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Upload, Sparkles, Check, Play, Star, Loader2 } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -16,47 +17,198 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Signup State
   const [step, setStep] = useState(1);
   const [selectedPfp, setSelectedPfp] = useState<string>('https://api.dicebear.com/7.x/avataaars/svg?seed=Felix');
+  const [verificationSent, setVerificationSent] = useState(false);
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', phone: '',
     allergies: '', hmoProvider: '', hmoNumber: '',
     emergencyContactName: '', emergencyContactPhone: '', dob: ''
   });
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = appStore.login(email, password);
-    if (user) {
-        if (selectedRole && user.role !== selectedRole && selectedRole !== 'client') {
-            setError(`Incorrect role. This account is not a ${selectedRole}.`);
+    setLoading(true);
+    setError('');
+
+    try {
+        // 1. Attempt Supabase Login
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (data.user) {
+             const metadata = data.user.user_metadata || {};
+             const profileData = metadata.profile || {};
+
+             const user: User = {
+                 id: data.user.id,
+                 email: data.user.email!,
+                 name: metadata.name || email.split('@')[0],
+                 role: (metadata.role as UserRole) || 'client',
+                 profile: {
+                     allergies: profileData.allergies || '',
+                     hmoProvider: profileData.hmoProvider || '',
+                     hmoNumber: profileData.hmoNumber || '',
+                     emergencyContactName: profileData.emergencyContactName || '',
+                     emergencyContactPhone: profileData.emergencyContactPhone || '',
+                     dob: profileData.dob || '',
+                     pfpUrl: profileData.pfpUrl
+                 }
+             };
+
+             // Check role if strictly logging in as staff
+             if (selectedRole && user.role !== selectedRole && selectedRole !== 'client') {
+                 setError(`Incorrect role. This account is not a ${selectedRole}.`);
+                 setLoading(false);
+                 return;
+             }
+
+             // Hydrate local store for compatibility
+             // We can't easily inject into the private array of Store,
+             // but we can ensure the app treats this user as logged in.
+             // We might need to add a method to Store to set current user from external source.
+             // For now, passing it to onLogin handles the React state.
+             onLogin(user);
+             return;
+        }
+
+        // 2. Fallback to Mock Login if Supabase fails or returns no user (e.g. invalid credentials for Supabase)
+        // This is important for the demo staff accounts to still work.
+        const mockUser = appStore.login(email, password);
+        if (mockUser) {
+             if (selectedRole && mockUser.role !== selectedRole && selectedRole !== 'client') {
+                setError(`Incorrect role. This account is not a ${selectedRole}.`);
+                setLoading(false);
+                return;
+            }
+            onLogin(mockUser);
             return;
         }
-        onLogin(user);
-    } else {
+
+        // If neither worked
+        if (authError) {
+             throw new Error(authError.message);
+        }
         setError('Invalid credentials.');
+
+    } catch (err: any) {
+        console.error(err);
+        // Fallback for network errors or unconfigured Supabase
+        const mockUser = appStore.login(email, password);
+        if (mockUser) {
+             onLogin(mockUser);
+        } else {
+             setError(err.message || 'Login failed.');
+        }
+    } finally {
+        setLoading(false);
     }
   };
 
-  const handleSignupSubmit = () => {
-    const newUser = appStore.signup({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: 'client',
-        profile: {
-            allergies: formData.allergies,
-            hmoProvider: formData.hmoProvider,
-            hmoNumber: formData.hmoNumber,
-            emergencyContactName: formData.emergencyContactName,
-            emergencyContactPhone: formData.emergencyContactPhone,
-            dob: formData.dob,
-            pfpUrl: selectedPfp
+  const handleSignupSubmit = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+        // Attempt Supabase Signup
+        const { data, error } = await supabase.auth.signUp({
+            email: formData.email,
+            password: formData.password,
+            options: {
+                data: {
+                    name: formData.name,
+                    role: 'client',
+                    profile: {
+                        allergies: formData.allergies,
+                        hmoProvider: formData.hmoProvider,
+                        hmoNumber: formData.hmoNumber,
+                        emergencyContactName: formData.emergencyContactName,
+                        emergencyContactPhone: formData.emergencyContactPhone,
+                        dob: formData.dob,
+                        pfpUrl: selectedPfp
+                    }
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+             // Supabase defaults to requiring email confirmation
+             setVerificationSent(true);
+             // We also create a local mock user so the flow continues if they are auto-confirmed (depends on Supabase settings)
+             // But usually they aren't.
+
+             // If the session exists immediately (Auto-confirm enabled), log them in
+             if (data.session) {
+                 const newUser: User = {
+                    id: data.user.id,
+                    name: formData.name,
+                    email: formData.email,
+                    role: 'client',
+                    profile: {
+                        allergies: formData.allergies,
+                        hmoProvider: formData.hmoProvider,
+                        hmoNumber: formData.hmoNumber,
+                        emergencyContactName: formData.emergencyContactName,
+                        emergencyContactPhone: formData.emergencyContactPhone,
+                        dob: formData.dob,
+                        pfpUrl: selectedPfp
+                    }
+                };
+                onLogin(newUser);
+             }
+        } else {
+             // Fallback for demo if Supabase is not configured
+             const newUser = appStore.signup({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                role: 'client',
+                profile: {
+                    allergies: formData.allergies,
+                    hmoProvider: formData.hmoProvider,
+                    hmoNumber: formData.hmoNumber,
+                    emergencyContactName: formData.emergencyContactName,
+                    emergencyContactPhone: formData.emergencyContactPhone,
+                    dob: formData.dob,
+                    pfpUrl: selectedPfp
+                }
+            });
+            onLogin(newUser);
         }
-    });
-    onLogin(newUser);
+
+    } catch (err: any) {
+        console.error("Supabase Signup Error:", err);
+        // Fallback to local store
+        if (err.message?.includes('apikey') || err.message?.includes('fetch')) {
+             const newUser = appStore.signup({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                role: 'client',
+                profile: {
+                    allergies: formData.allergies,
+                    hmoProvider: formData.hmoProvider,
+                    hmoNumber: formData.hmoNumber,
+                    emergencyContactName: formData.emergencyContactName,
+                    emergencyContactPhone: formData.emergencyContactPhone,
+                    dob: formData.dob,
+                    pfpUrl: selectedPfp
+                }
+            });
+            onLogin(newUser);
+        } else {
+            setError(err.message);
+        }
+    } finally {
+        setLoading(false);
+    }
   };
 
   const pfpOptions = [
@@ -191,6 +343,20 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   }
 
   if (mode === 'signup') {
+      if (verificationSent) {
+          return (
+              <div className="max-w-md mx-auto px-4 py-12 animate-fade-in bg-white shadow-xl rounded-2xl mt-10 border border-gray-100 text-center">
+                  <div className="bg-teal-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Mail size={40} className="text-teal-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
+                  <p className="text-gray-500 mb-6">We've sent a verification link to <span className="font-bold text-gray-900">{formData.email}</span>.</p>
+                  <p className="text-sm text-gray-400 mb-6">Please verify your email to continue accessing DirectPulse.</p>
+                  <button onClick={() => setMode('login')} className="text-teal-600 font-bold hover:underline">Back to Login</button>
+              </div>
+          );
+      }
+
       return (
           <div className="max-w-lg mx-auto px-4 py-8 animate-fade-in bg-white shadow-xl rounded-2xl mt-10 border border-gray-100">
               <div className="mb-8">
@@ -254,7 +420,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                       <input type="tel" placeholder="Contact Phone" className="w-full p-3 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={formData.emergencyContactPhone} onChange={e => setFormData({...formData, emergencyContactPhone: e.target.value})} />
                       
                       <div className="mt-6 pt-6 border-t border-gray-100">
-                          <button onClick={handleSignupSubmit} className="w-full py-3 bg-teal-800 text-white rounded-lg font-bold hover:bg-teal-900 shadow-lg">Complete Registration</button>
+                          <button onClick={handleSignupSubmit} disabled={loading} className="w-full py-3 bg-teal-800 text-white rounded-lg font-bold hover:bg-teal-900 shadow-lg flex items-center justify-center gap-2">
+                              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Complete Registration'}
+                          </button>
                       </div>
                       <button onClick={() => setStep(2)} className="w-full mt-2 text-gray-500 font-medium">Back</button>
                   </div>
@@ -311,8 +479,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 {selectedRole && <p className="text-[10px] text-gray-400 text-right">Default staff password: "staff"</p>}
             </div>
 
-            <button type="submit" className="w-full py-3 bg-teal-700 text-white rounded-lg font-bold hover:bg-teal-800 transition-colors shadow-md">
-                Authenticate
+            <button type="submit" disabled={loading} className="w-full py-3 bg-teal-700 text-white rounded-lg font-bold hover:bg-teal-800 transition-colors shadow-md flex justify-center items-center gap-2">
+                {loading ? <Loader2 className="animate-spin" size={20} /> : 'Authenticate'}
             </button>
         </form>
 

@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TriageResponse } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'mock-key';
+// Only initialize if key is present to avoid crash, or handle inside function
+const ai = new GoogleGenAI({ apiKey });
 
 const SYSTEM_INSTRUCTION = `
 You are the Chief Medical Triage and Diagnostic Copilot AI. Your job is to analyze patient symptoms provided in natural language, determine the severity, route the patient to the correct medical department, and provide a preliminary diagnostic analysis for the attending physician.

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { TriageRequest, ChatMessage, UserRole, SeverityLevel } from '../../types';
 import { appStore } from '../../services/store';
+import { toast } from '../../services/toastService';
+import { DRUGS } from '../../data/drugs';
 import AnalysisResult from '../AnalysisResult';
-import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit2, X, Send, Phone, Clock, FileText } from 'lucide-react';
+import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit2, X, Send, Phone, Clock, FileText, Pill } from 'lucide-react';
 
 interface DoctorPortalProps {
     role: UserRole;
@@ -23,6 +25,10 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   const [symptomText, setSymptomText] = useState('');
   const [summaryText, setSummaryText] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Prescription State
+  const [selectedDrugId, setSelectedDrugId] = useState('');
+  const [dosageInstructions, setDosageInstructions] = useState('');
   
   // Chat state
   const [chatMsg, setChatMsg] = useState('');
@@ -61,18 +67,41 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
           setNotes('');
           setSymptomText('');
           setSummaryText('');
+          setSelectedDrugId('');
+          setDosageInstructions('');
           setPatientHistory([]);
       }
   }, [queue, selectedPatient, editingSymptoms, editingSummary]);
 
-  const handlePrescribe = (reqId: string) => {
-    appStore.updateRequest(reqId, { status: 'prescribed', prescription: 'Amoxicillin 500mg (3x Daily), Paracetamol', doctorNotes: notes });
+  const handlePrescribe = () => {
+    if (!selectedPatient) return;
+
+    const drug = DRUGS.find(d => d.id === selectedDrugId);
+    if (!drug) {
+        toast.error("Please select a medication.");
+        return;
+    }
+
+    if (!dosageInstructions.trim()) {
+        toast.error("Please provide dosage instructions.");
+        return;
+    }
+
+    const fullPrescription = `${drug.name} - ${dosageInstructions}`;
+
+    appStore.updateRequest(selectedPatient.id, {
+        status: 'prescribed',
+        prescription: fullPrescription,
+        doctorNotes: notes,
+        drugImageUrl: drug.imageUrl
+    });
+    toast.success("Prescription sent successfully.");
   };
 
   const handleSaveNotes = () => {
      if (selectedPatient) {
          appStore.updateRequest(selectedPatient.id, { doctorNotes: notes });
-         alert("Notes saved successfully.");
+         toast.success("Notes saved successfully.");
      }
   };
 
@@ -100,7 +129,7 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   };
 
   const handleStartAudio = () => {
-      alert("Starting secure audio session with patient...");
+      toast.info("Starting secure audio session with patient...");
   };
 
   const filteredQueue = queue.filter(q => {
@@ -206,15 +235,6 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
                             <Phone size={16} />
                             Call
                         </button>
-                        {(selectedPatient.status === 'pending_triage' || selectedPatient.status === 'triaged') && (
-                            <button 
-                            onClick={() => handlePrescribe(selectedPatient.id)}
-                            className="bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-md active:scale-95"
-                            >
-                            <Stethoscope size={18} />
-                            Prescribe
-                            </button>
-                        )}
                     </div>
                 </div>
 
@@ -300,6 +320,61 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
               <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
                 <p className="text-gray-500">Analysis pending...</p>
               </div>
+            )}
+
+            {/* Prescription Section */}
+            {(selectedPatient.status === 'pending_triage' || selectedPatient.status === 'triaged' || selectedPatient.status === 'prescribed') && (
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-6">
+                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Stethoscope size={20} className="text-teal-600" />
+                    Prescription & Treatment
+                </h3>
+
+                <div className="space-y-4">
+                    <div className="flex gap-4 items-start">
+                        <div className="flex-1 space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase">Select Medication</label>
+                            <select
+                                className="w-full p-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                                value={selectedDrugId}
+                                onChange={(e) => setSelectedDrugId(e.target.value)}
+                            >
+                                <option value="">Select Medication...</option>
+                                {DRUGS.map(d => (
+                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedDrugId && (
+                             <div className="w-16 h-16 mt-6 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                                <img
+                                    src={DRUGS.find(d => d.id === selectedDrugId)?.imageUrl}
+                                    alt="Drug Preview"
+                                    className="w-full h-full object-cover"
+                                />
+                             </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                         <label className="text-xs font-bold text-gray-500 uppercase">Dosage Instructions</label>
+                         <textarea
+                            placeholder="e.g. 1 tablet every 8 hours for 5 days. Take with food."
+                            value={dosageInstructions}
+                            onChange={e => setDosageInstructions(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24"
+                        />
+                    </div>
+
+                    <button
+                        onClick={handlePrescribe}
+                        className="w-full bg-teal-700 hover:bg-teal-800 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                    >
+                        <Pill size={18} />
+                        Issue Prescription
+                    </button>
+                </div>
+            </div>
             )}
 
             {/* Doctor Notes */}
