@@ -1,9 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TriageResponse } from "../types";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'mock-key';
-// Only initialize if key is present to avoid crash, or handle inside function
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
 You are the Chief Medical Triage and Diagnostic Copilot AI. Your job is to analyze patient symptoms provided in natural language, determine the severity, route the patient to the correct medical department, and provide a preliminary diagnostic analysis for the attending physician.
@@ -68,19 +66,72 @@ export const analyzeSymptoms = async (symptoms: string): Promise<TriageResponse>
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: TRIAGE_SCHEMA,
-        temperature: 0.2, // Low temperature for consistent medical routing
       },
     });
 
-    const jsonText = response.text;
-    if (!jsonText) {
-      throw new Error("Empty response from AI");
+    const text = response.text;
+    if (!text) {
+        throw new Error("No response from AI");
     }
-
-    const data = JSON.parse(jsonText) as TriageResponse;
-    return data;
+    
+    return JSON.parse(text) as TriageResponse;
   } catch (error) {
-    console.error("Error analyzing symptoms:", error);
-    throw new Error("Failed to analyze symptoms. Please try again.");
+    console.error("Triage Analysis Failed:", error);
+    // Fallback response to prevent app crash
+    return {
+        emergency_override: false,
+        emergency_message: null,
+        recommended_department: "General Medical Doctor",
+        patient_summary: "Error processing symptoms. Please consult a doctor directly.",
+        ai_preliminary_analysis: ["Analysis Unavailable"],
+        human_error_checks: ["Manual Triage Required"]
+    };
+  }
+};
+
+export const getSymptomRefinement = async (currentInput: string): Promise<string | null> => {
+  // Only suggest if input is substantial enough to have context but might be missing details
+  if (currentInput.length < 8) return null; 
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `The user is typing medical symptoms: "${currentInput}". 
+      Identify ONE specific missing detail (like duration, exact location, severity 1-10, or triggers) that would help a doctor. 
+      Ask it as a short, friendly suggestion (max 10 words). 
+      If the input is already detailed, return "Looks detailed enough."`,
+    });
+    
+    const text = response.text?.trim();
+    if (text === "Looks detailed enough." || !text) return null;
+    return text;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const transcribeAudio = async (audioBase64: string, mimeType: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: audioBase64
+            }
+          },
+          {
+            text: "Transcribe the spoken language in this audio exactly. Return ONLY the text, no extra explanation."
+          }
+        ]
+      }
+    });
+
+    return response.text || "";
+  } catch (error) {
+    console.error("Audio Transcription Failed:", error);
+    return "";
   }
 };

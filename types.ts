@@ -1,3 +1,4 @@
+
 export interface TriageResponse {
   emergency_override: boolean;
   emergency_message: string | null;
@@ -34,6 +35,7 @@ export interface PatientProfile {
   emergencyContactPhone: string;
   dob: string;
   pfpUrl?: string; // Unlocked feature
+  privateNotes?: string; // Local user notes
 }
 
 export interface User {
@@ -41,6 +43,7 @@ export interface User {
   name: string;
   role: UserRole;
   email: string;
+  phone?: string; // Added phone number
   password?: string; // For mock auth
   profile?: PatientProfile;
   hasDeliveredOrder?: boolean; // To unlock PFP

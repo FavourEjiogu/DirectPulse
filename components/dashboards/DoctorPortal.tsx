@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { TriageRequest, ChatMessage, UserRole, SeverityLevel } from '../../types';
 import { appStore } from '../../services/store';
-import { toast } from '../../services/toastService';
-import { DRUGS } from '../../data/drugs';
 import AnalysisResult from '../AnalysisResult';
-import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit2, X, Send, Phone, Clock, FileText, Pill } from 'lucide-react';
+import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit2, X, Send, Phone, Clock, FileText, ArrowRightLeft, PhoneCall } from 'lucide-react';
 
 interface DoctorPortalProps {
     role: UserRole;
@@ -25,13 +24,13 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   const [symptomText, setSymptomText] = useState('');
   const [summaryText, setSummaryText] = useState('');
   const [notes, setNotes] = useState('');
-
-  // Prescription State
-  const [selectedDrugId, setSelectedDrugId] = useState('');
-  const [dosageInstructions, setDosageInstructions] = useState('');
+  const [transferTarget, setTransferTarget] = useState<string>('');
   
-  // Chat state
+  // Chat & Call state
   const [chatMsg, setChatMsg] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [isCalling, setIsCalling] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   useEffect(() => {
     const updateQueue = () => setQueue(appStore.getRequests(role));
@@ -39,6 +38,11 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
     const interval = setInterval(updateQueue, 3000);
     return () => clearInterval(interval);
   }, [role]);
+
+  useEffect(() => {
+    // Scroll chat to bottom
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selectedPatient?.chatHistory]);
 
   useEffect(() => {
       // Sync local state when selected patient changes or queue updates
@@ -52,9 +56,6 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
               if (!editingSymptoms) setSymptomText(freshData.symptoms);
               if (!editingSummary) setSummaryText(freshData.aiAnalysis?.patient_summary || '');
               
-              // Always sync notes from store if it changes remotely (or initialize)
-              // We only set it if the user hasn't typed anything yet or if we just switched patients.
-              // For simplicity, we assume one doctor editing at a time.
               if (freshData.doctorNotes !== undefined && notes === '') {
                  setNotes(freshData.doctorNotes);
               }
@@ -67,41 +68,32 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
           setNotes('');
           setSymptomText('');
           setSummaryText('');
-          setSelectedDrugId('');
-          setDosageInstructions('');
           setPatientHistory([]);
       }
   }, [queue, selectedPatient, editingSymptoms, editingSummary]);
 
-  const handlePrescribe = () => {
-    if (!selectedPatient) return;
+  // Call timer effect
+  useEffect(() => {
+      let timer: any;
+      if (isCalling) {
+          timer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
+      } else {
+          setCallDuration(0);
+      }
+      return () => clearInterval(timer);
+  }, [isCalling]);
 
-    const drug = DRUGS.find(d => d.id === selectedDrugId);
-    if (!drug) {
-        toast.error("Please select a medication.");
-        return;
-    }
-
-    if (!dosageInstructions.trim()) {
-        toast.error("Please provide dosage instructions.");
-        return;
-    }
-
-    const fullPrescription = `${drug.name} - ${dosageInstructions}`;
-
-    appStore.updateRequest(selectedPatient.id, {
-        status: 'prescribed',
-        prescription: fullPrescription,
-        doctorNotes: notes,
-        drugImageUrl: drug.imageUrl
-    });
-    toast.success("Prescription sent successfully.");
+  const handlePrescribe = (reqId: string) => {
+    appStore.updateRequest(reqId, { status: 'prescribed', prescription: 'Amoxicillin 500mg (3x Daily), Paracetamol', doctorNotes: notes });
+    // Add system note to chat
+    const user = appStore.getCurrentUser();
+    appStore.addChatMessage(reqId, `Prescription issued by ${user?.name}.`, 'system', 'System');
   };
 
   const handleSaveNotes = () => {
      if (selectedPatient) {
          appStore.updateRequest(selectedPatient.id, { doctorNotes: notes });
-         toast.success("Notes saved successfully.");
+         alert("Notes saved successfully.");
      }
   };
 
@@ -129,7 +121,31 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   };
 
   const handleStartAudio = () => {
-      toast.info("Starting secure audio session with patient...");
+      setIsCalling(true);
+  };
+
+  const formatTime = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleTransfer = () => {
+      if (!selectedPatient || !transferTarget) return;
+      if (!selectedPatient.aiAnalysis) return;
+
+      const currentUser = appStore.getCurrentUser();
+      
+      const updatedAnalysis = { 
+          ...selectedPatient.aiAnalysis, 
+          recommended_department: transferTarget 
+      };
+
+      appStore.updateRequest(selectedPatient.id, { aiAnalysis: updatedAnalysis });
+      appStore.addChatMessage(selectedPatient.id, `Patient transferred to ${transferTarget} by ${currentUser?.name}.`, 'system', 'System');
+      
+      alert(`Patient transferred to ${transferTarget}.`);
+      setSelectedPatient(null); // Clear selection as they leave the queue
   };
 
   const filteredQueue = queue.filter(q => {
@@ -147,8 +163,55 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
       }
   };
 
+  const specialistsList = [
+      'General Medical Doctor',
+      'Paediatrician',
+      'Dentist',
+      'ENT Doctor',
+      'Cardiologist',
+      'Dermatologist',
+      'Psychiatrist'
+  ];
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)] relative">
+      
+      {/* Call Overlay */}
+      {isCalling && selectedPatient && (
+          <div className="absolute inset-0 z-50 bg-gray-900/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center text-white animate-fade-in">
+              <div className="w-32 h-32 rounded-full bg-teal-600/20 flex items-center justify-center mb-6 animate-pulse">
+                  <div className="w-24 h-24 rounded-full bg-teal-600 flex items-center justify-center">
+                      <User size={48} />
+                  </div>
+              </div>
+              <h2 className="text-3xl font-bold mb-2">{selectedPatient.patientName}</h2>
+              <div className="flex items-center gap-2 text-teal-300 mb-8">
+                  <PhoneCall size={20} className="animate-bounce" />
+                  <span className="font-mono text-xl">{formatTime(callDuration)}</span>
+              </div>
+              
+              {/* Patient Phone Display if available */}
+              {(() => {
+                  const patientUser = appStore.getUserById(selectedPatient.patientId);
+                  return patientUser?.phone ? (
+                      <p className="mb-8 text-gray-400 text-lg">{patientUser.phone}</p>
+                  ) : <p className="mb-8 text-gray-400">Audio Only Connection</p>;
+              })()}
+
+              <div className="flex gap-6">
+                  <button className="p-4 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors">
+                      <Stethoscope size={24} />
+                  </button>
+                  <button 
+                    onClick={() => setIsCalling(false)}
+                    className="p-4 rounded-full bg-red-600 hover:bg-red-700 transition-colors shadow-lg hover:shadow-red-500/30 transform hover:scale-110"
+                  >
+                      <Phone size={24} className="rotate-[135deg]" />
+                  </button>
+              </div>
+          </div>
+      )}
+
       {/* 1. Patient Queue (Left) - 3 Columns */}
       <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
         <div className="p-4 border-b border-gray-100 bg-gray-50">
@@ -208,6 +271,9 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
               <p className="text-xs text-gray-500 line-clamp-1 group-hover:text-gray-700">{req.symptoms}</p>
             </button>
           ))}
+          {filteredQueue.length === 0 && (
+              <p className="text-center text-gray-400 text-xs py-10">Queue is empty.</p>
+          )}
         </div>
       </div>
 
@@ -235,7 +301,39 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
                             <Phone size={16} />
                             Call
                         </button>
+                        {(selectedPatient.status === 'pending_triage' || selectedPatient.status === 'triaged') && (
+                            <button 
+                            onClick={() => handlePrescribe(selectedPatient.id)}
+                            className="bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-md active:scale-95"
+                            >
+                            <Stethoscope size={18} />
+                            Prescribe
+                            </button>
+                        )}
                     </div>
+                </div>
+
+                {/* Delegation / Transfer Tool */}
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 flex items-center gap-3 mb-4">
+                    <ArrowRightLeft size={16} className="text-gray-500" />
+                    <span className="text-xs font-bold text-gray-600 uppercase">Refer Patient:</span>
+                    <select 
+                        className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block p-2 flex-1 outline-none"
+                        value={transferTarget}
+                        onChange={(e) => setTransferTarget(e.target.value)}
+                    >
+                        <option value="">Select Specialist...</option>
+                        {specialistsList.filter(s => s !== selectedPatient.aiAnalysis?.recommended_department).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
+                    </select>
+                    <button 
+                        disabled={!transferTarget}
+                        onClick={handleTransfer}
+                        className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-black transition-colors"
+                    >
+                        Transfer
+                    </button>
                 </div>
 
                 {/* Patient Summary (Editable) */}
@@ -322,61 +420,6 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
               </div>
             )}
 
-            {/* Prescription Section */}
-            {(selectedPatient.status === 'pending_triage' || selectedPatient.status === 'triaged' || selectedPatient.status === 'prescribed') && (
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-6">
-                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Stethoscope size={20} className="text-teal-600" />
-                    Prescription & Treatment
-                </h3>
-
-                <div className="space-y-4">
-                    <div className="flex gap-4 items-start">
-                        <div className="flex-1 space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase">Select Medication</label>
-                            <select
-                                className="w-full p-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
-                                value={selectedDrugId}
-                                onChange={(e) => setSelectedDrugId(e.target.value)}
-                            >
-                                <option value="">Select Medication...</option>
-                                {DRUGS.map(d => (
-                                    <option key={d.id} value={d.id}>{d.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedDrugId && (
-                             <div className="w-16 h-16 mt-6 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
-                                <img
-                                    src={DRUGS.find(d => d.id === selectedDrugId)?.imageUrl}
-                                    alt="Drug Preview"
-                                    className="w-full h-full object-cover"
-                                />
-                             </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-2">
-                         <label className="text-xs font-bold text-gray-500 uppercase">Dosage Instructions</label>
-                         <textarea
-                            placeholder="e.g. 1 tablet every 8 hours for 5 days. Take with food."
-                            value={dosageInstructions}
-                            onChange={e => setDosageInstructions(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24"
-                        />
-                    </div>
-
-                    <button
-                        onClick={handlePrescribe}
-                        className="w-full bg-teal-700 hover:bg-teal-800 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
-                    >
-                        <Pill size={18} />
-                        Issue Prescription
-                    </button>
-                </div>
-            </div>
-            )}
-
             {/* Doctor Notes */}
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -409,27 +452,36 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
          <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <MessageSquare size={18} className="text-teal-600" />
-                Staff Chat
+                Live Chat
             </h3>
-            <p className="text-[10px] text-gray-500">Context: {selectedPatient ? selectedPatient.patientName : 'No selection'}</p>
+            <p className="text-[10px] text-gray-500">Messaging: {selectedPatient ? selectedPatient.patientName : 'No selection'}</p>
          </div>
          
          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30">
-            {!selectedPatient && <p className="text-center text-gray-400 text-xs mt-10">Select a patient to chat with Pharmacists or other specialists regarding their case.</p>}
+            {!selectedPatient && <p className="text-center text-gray-400 text-xs mt-10">Select a patient to message.</p>}
             
             {selectedPatient && selectedPatient.chatHistory.map(msg => (
-                <div key={msg.id} className={`flex flex-col ${msg.senderId.startsWith('staff_doctor') ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] p-3 rounded-xl text-xs ${
-                        msg.senderId.startsWith('staff_doctor') 
-                        ? 'bg-teal-600 text-white rounded-tr-none' 
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'
-                    }`}>
-                        <p className="font-bold mb-1 opacity-80">{msg.senderName}</p>
-                        <p>{msg.message}</p>
-                    </div>
-                    <span className="text-[9px] text-gray-400 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                <div key={msg.id} className={`flex flex-col ${msg.senderId === 'system' ? 'items-center' : (msg.senderId.startsWith('staff_doctor') ? 'items-end' : 'items-start')}`}>
+                    {msg.senderId === 'system' ? (
+                        <div className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-[10px] font-bold my-2">
+                            {msg.message}
+                        </div>
+                    ) : (
+                        <div className={`max-w-[85%] p-3 rounded-xl text-xs shadow-sm ${
+                            msg.senderId.startsWith('staff_doctor') 
+                            ? 'bg-teal-600 text-white rounded-tr-none' 
+                            : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'
+                        }`}>
+                            <p className="font-bold mb-1 opacity-80 text-[10px] uppercase tracking-wide">{msg.senderName}</p>
+                            <p>{msg.message}</p>
+                        </div>
+                    )}
+                    {msg.senderId !== 'system' && (
+                        <span className="text-[9px] text-gray-400 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    )}
                 </div>
             ))}
+            <div ref={chatEndRef} />
          </div>
 
          <div className="p-3 border-t border-gray-100">
@@ -440,13 +492,13 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
                     value={chatMsg}
                     onChange={(e) => setChatMsg(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                    placeholder="Type message..."
+                    placeholder="Type message to patient..."
                     className="flex-1 bg-gray-100 border-0 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none text-gray-900"
                  />
                  <button 
                     disabled={!selectedPatient || !chatMsg.trim()}
                     onClick={handleSendChat}
-                    className="p-2 bg-teal-600 text-white rounded-lg disabled:opacity-50 hover:bg-teal-700"
+                    className="p-2 bg-teal-600 text-white rounded-lg disabled:opacity-50 hover:bg-teal-700 transition-colors"
                  >
                      <Send size={16} />
                  </button>

@@ -1,3 +1,4 @@
+
 import { TriageRequest, User, UserRole, ChatMessage } from "../types";
 
 // Mock Data Store
@@ -5,9 +6,20 @@ class Store {
   private requests: TriageRequest[] = [];
   private users: User[] = [];
   private currentUser: User | null = null;
+  private toastListener: ((message: string) => void) | null = null;
 
   constructor() {
     this.seedData();
+  }
+
+  setToastListener(listener: (message: string) => void) {
+      this.toastListener = listener;
+  }
+
+  triggerToast(message: string) {
+      if (this.toastListener) {
+          this.toastListener(message);
+      }
   }
 
   private seedData() {
@@ -30,6 +42,7 @@ class Store {
       name: 'John Doe',
       role: 'client',
       email: 'john@example.com',
+      phone: '+1 (555) 012-3456',
       password: 'password123',
       profile: {
         allergies: 'Penicillin',
@@ -37,7 +50,8 @@ class Store {
         hmoNumber: 'AX99281',
         emergencyContactName: 'Jane Doe',
         emergencyContactPhone: '555-0199',
-        dob: '1985-04-12'
+        dob: '1985-04-12',
+        privateNotes: 'I feel anxious when visiting hospitals.'
       },
       hasDeliveredOrder: true // Can generate PFP
     });
@@ -87,6 +101,7 @@ class Store {
     const newUser = { ...user, id: `user_${Date.now()}` };
     this.users.push(newUser);
     this.currentUser = newUser;
+    this.triggerToast(`Welcome to DirectPulse, ${newUser.name}!`);
     return newUser;
   }
 
@@ -94,25 +109,37 @@ class Store {
     const user = this.users.find(u => u.email === email && u.password === password);
     if (user) {
       this.currentUser = user;
+      this.triggerToast("Successfully logged in.");
     }
     return user;
   }
 
   logout() {
     this.currentUser = null;
+    this.triggerToast("Logged out successfully.");
   }
 
   getCurrentUser() {
     return this.currentUser;
   }
 
+  getUserById(id: string): User | undefined {
+      return this.users.find(u => u.id === id);
+  }
+
   updateUserProfile(userId: string, updates: Partial<User>) {
     const idx = this.users.findIndex(u => u.id === userId);
     if (idx !== -1) {
-      this.users[idx] = { ...this.users[idx], ...updates };
+      // Merge logic carefully for nested profile
+      const currentProfile = this.users[idx].profile || {};
+      const newProfile = updates.profile ? { ...currentProfile, ...updates.profile } : currentProfile;
+      
+      this.users[idx] = { ...this.users[idx], ...updates, profile: newProfile as any };
+      
       if (this.currentUser?.id === userId) {
         this.currentUser = this.users[idx];
       }
+      this.triggerToast("Profile updated successfully.");
     }
   }
 
@@ -166,6 +193,7 @@ class Store {
 
   addRequest(request: TriageRequest) {
     this.requests.unshift(request);
+    this.triggerToast("Triage analysis started.");
   }
 
   updateRequest(id: string, updates: Partial<TriageRequest>) {
@@ -176,6 +204,9 @@ class Store {
       if (updates.status === 'delivered') {
         const patientId = this.requests[index].patientId;
         this.updateUserProfile(patientId, { hasDeliveredOrder: true });
+      }
+      if (updates.status) {
+          this.triggerToast(`Request status updated: ${updates.status.replace('_', ' ')}`);
       }
     }
   }
