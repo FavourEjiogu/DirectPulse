@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserRole, User } from '../types';
 import SpecialistGrid from './SpecialistGrid';
 import { appStore } from '../services/store';

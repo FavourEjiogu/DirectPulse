@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { TriageRequest, ChatMessage, UserRole, SeverityLevel } from '../../types';
+import { TriageRequest, UserRole, SeverityLevel } from '../../types';
 import { appStore } from '../../services/store';
 import AnalysisResult from '../AnalysisResult';
 import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit2, X, Send, Phone, Clock, FileText, ArrowRightLeft, PhoneCall } from 'lucide-react';
