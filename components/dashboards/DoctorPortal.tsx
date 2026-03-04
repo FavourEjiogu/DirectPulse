@@ -60,17 +60,22 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
                  setNotes(freshData.doctorNotes);
               }
           }
-          
-          // Fetch History
-          const history = appStore.getPatientHistory(selectedPatient.patientId).filter(r => r.id !== selectedPatient.id);
-          setPatientHistory(history);
       } else {
           setNotes('');
           setSymptomText('');
           setSummaryText('');
-          setPatientHistory([]);
       }
   }, [queue, selectedPatient, editingSymptoms, editingSummary]);
+
+  useEffect(() => {
+      // Fetch History only when the selected patient changes
+      if (selectedPatient) {
+          const history = appStore.getPatientHistory(selectedPatient.patientId).filter(r => r.id !== selectedPatient.id);
+          setPatientHistory(history);
+      } else {
+          setPatientHistory([]);
+      }
+  }, [selectedPatient]);
 
   // Call timer effect
   useEffect(() => {
