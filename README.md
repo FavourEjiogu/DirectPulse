@@ -45,7 +45,7 @@ DirectPulse is a next-generation healthcare platform that leverages Artificial I
 **Patients:**
 *   Signup via the Landing Page.
 
-**Staff (Password: `staff`):**
+**Staff (Password: Configured via Firebase Authentication):**
 *   `doctor@directpulse.com` (General MD)
 *   `cardiologist@directpulse.com`
 *   `pharmacist@directpulse.com`

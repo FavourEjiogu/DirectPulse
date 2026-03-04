@@ -1,5 +1,7 @@
 
 import { TriageRequest, User, UserRole, ChatMessage } from "../types";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth } from "./firebase";
 
 // Mock Data Store
 class Store {
@@ -23,7 +25,7 @@ class Store {
   }
 
   private seedData() {
-    // Medical Staff (Default password: staff)
+    // Medical Staff
     const specialties: UserRole[] = ['doctor', 'paediatrician', 'dentist', 'ent', 'cardiologist', 'dermatologist', 'psychiatrist', 'pharmacist', 'rider'];
     
     specialties.forEach(role => {
@@ -31,8 +33,7 @@ class Store {
         id: `staff_${role}`,
         name: role === 'doctor' ? 'Dr. Sarah General' : `Staff ${role.charAt(0).toUpperCase() + role.slice(1)}`,
         role: role,
-        email: `${role}@directpulse.com`,
-        password: 'staff'
+        email: `${role}@directpulse.com`
       });
     });
 
@@ -43,7 +44,6 @@ class Store {
       role: 'client',
       email: 'john@example.com',
       phone: '+1 (555) 012-3456',
-      password: 'password123',
       profile: {
         allergies: 'Penicillin',
         hmoProvider: 'Axa Mansard',
@@ -97,24 +97,40 @@ class Store {
 
   // --- Auth ---
 
-  signup(user: Omit<User, 'id'>): User {
-    const newUser = { ...user, id: `user_${Date.now()}` };
-    this.users.push(newUser);
-    this.currentUser = newUser;
-    this.triggerToast(`Welcome to DirectPulse, ${newUser.name}!`);
-    return newUser;
-  }
-
-  login(email: string, password: string):User | undefined {
-    const user = this.users.find(u => u.email === email && u.password === password);
-    if (user) {
-      this.currentUser = user;
-      this.triggerToast("Successfully logged in.");
+  async signup(user: Omit<User, 'id'>, passwordText: string): Promise<User | undefined> {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, user.email, passwordText);
+      const newUser = { ...user, id: userCredential.user.uid };
+      this.users.push(newUser);
+      this.currentUser = newUser;
+      this.triggerToast(`Welcome to DirectPulse, ${newUser.name}!`);
+      return newUser;
+    } catch (error: any) {
+      this.triggerToast(error.message || "Signup failed");
+      return undefined;
     }
-    return user;
   }
 
-  logout() {
+  async login(email: string, passwordText: string): Promise<User | undefined> {
+    try {
+      await signInWithEmailAndPassword(auth, email, passwordText);
+      // Mock retrieving the user from the store by email since this is a mock DB
+      const user = this.users.find(u => u.email === email);
+      if (user) {
+        this.currentUser = user;
+        this.triggerToast("Successfully logged in.");
+        return user;
+      }
+      this.triggerToast("User profile not found in mock DB.");
+      return undefined;
+    } catch (error: any) {
+      this.triggerToast(error.message || "Login failed");
+      return undefined;
+    }
+  }
+
+  async logout() {
+    await signOut(auth);
     this.currentUser = null;
     this.triggerToast("Logged out successfully.");
   }
