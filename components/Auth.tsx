@@ -30,9 +30,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = appStore.login(email, password);
+    const user = await appStore.login(email, password);
     if (user) {
         if (selectedRole && user.role !== selectedRole && selectedRole !== 'client') {
             setError(`Incorrect role. This account is not a ${selectedRole}.`);
@@ -44,11 +44,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
   };
 
-  const handleSignupSubmit = () => {
-    const newUser = appStore.signup({
+  const handleSignupSubmit = async () => {
+    const newUser = await appStore.signup({
         name: formData.name,
         email: formData.email,
-        password: formData.password,
         phone: formData.phone,
         role: 'client',
         profile: {
@@ -61,8 +60,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             pfpUrl: selectedPfp,
             privateNotes: ''
         }
-    });
-    onLogin(newUser);
+    }, formData.password);
+    if (newUser) {
+      onLogin(newUser);
+    }
   };
 
   const pfpOptions = [
@@ -652,7 +653,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         onChange={e => setPassword(e.target.value)}
                     />
                 </div>
-                {selectedRole && <p className="text-[10px] text-gray-400 text-right">Default staff password: "staff"</p>}
             </div>
 
             <button type="submit" className="w-full py-3 bg-teal-700 text-white rounded-lg font-bold hover:bg-teal-800 transition-colors shadow-md">

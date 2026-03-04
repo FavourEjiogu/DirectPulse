@@ -44,7 +44,6 @@ export interface User {
   role: UserRole;
   email: string;
   phone?: string; // Added phone number
-  password?: string; // For mock auth
   profile?: PatientProfile;
   hasDeliveredOrder?: boolean; // To unlock PFP
 }
