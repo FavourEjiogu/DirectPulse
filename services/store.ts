@@ -1,8 +1,8 @@
 
-import { TriageRequest, User, UserRole, ChatMessage } from "../types";
+import type { TriageRequest, User, UserRole, ChatMessage } from "../types.ts";
 
 // Mock Data Store
-class Store {
+export class Store {
   private requests: TriageRequest[] = [];
   private users: User[] = [];
   private currentUser: User | null = null;
