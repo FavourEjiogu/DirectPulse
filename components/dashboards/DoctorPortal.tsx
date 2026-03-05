@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { TriageRequest, ChatMessage, UserRole, SeverityLevel } from '../../types';
 import { appStore } from '../../services/store';
 import AnalysisResult from '../AnalysisResult';
@@ -8,6 +8,16 @@ import { User, ClipboardList, Stethoscope, ArrowRight, MessageSquare, Save, Edit
 interface DoctorPortalProps {
     role: UserRole;
 }
+
+const specialistsList = [
+    'General Medical Doctor',
+    'Paediatrician',
+    'Dentist',
+    'ENT Doctor',
+    'Cardiologist',
+    'Dermatologist',
+    'Psychiatrist'
+];
 
 const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   const [queue, setQueue] = useState<TriageRequest[]>([]);
@@ -163,15 +173,10 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
       }
   };
 
-  const specialistsList = [
-      'General Medical Doctor',
-      'Paediatrician',
-      'Dentist',
-      'ENT Doctor',
-      'Cardiologist',
-      'Dermatologist',
-      'Psychiatrist'
-  ];
+  const filteredSpecialists = useMemo(() => {
+    const recommended = selectedPatient?.aiAnalysis?.recommended_department;
+    return specialistsList.filter(s => s !== recommended);
+  }, [selectedPatient?.aiAnalysis?.recommended_department]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)] relative">
@@ -323,7 +328,7 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
                         onChange={(e) => setTransferTarget(e.target.value)}
                     >
                         <option value="">Select Specialist...</option>
-                        {specialistsList.filter(s => s !== selectedPatient.aiAnalysis?.recommended_department).map(s => (
+                        {filteredSpecialists.map(s => (
                             <option key={s} value={s}>{s}</option>
                         ))}
                     </select>
