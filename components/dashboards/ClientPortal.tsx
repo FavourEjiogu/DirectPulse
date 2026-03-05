@@ -53,7 +53,7 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
       const severity = result.emergency_override ? 'High' : (Math.random() > 0.5 ? 'Medium' : 'Low');
 
       const newRequest: TriageRequest = {
-        id: `req_${Date.now()}`,
+        id: `req_${crypto.randomUUID()}`,
         patientId: user.id,
         patientName: user.name,
         symptoms: symptoms,
