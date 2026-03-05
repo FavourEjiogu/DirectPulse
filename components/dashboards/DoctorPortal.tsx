@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TriageRequest, ChatMessage, UserRole, SeverityLevel } from '../../types';
+import { getSeverityColor } from '../../utils/severityUtils';
 import { appStore } from '../../services/store';
 import { toast } from '../../services/toastService';
 import { DRUGS } from '../../data/drugs';
@@ -137,15 +138,6 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
       const severityMatch = severityFilter === 'All' ? true : q.severity === severityFilter;
       return statusMatch && severityMatch;
   });
-
-  const getSeverityColor = (level: SeverityLevel) => {
-      switch(level) {
-          case 'High': return 'bg-red-500 text-white';
-          case 'Medium': return 'bg-orange-400 text-white';
-          case 'Low': return 'bg-green-500 text-white';
-          default: return 'bg-gray-400';
-      }
-  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
