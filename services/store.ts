@@ -84,7 +84,7 @@ class Store {
   // --- Auth ---
 
   signup(user: Omit<User, 'id'>): User {
-    const newUser = { ...user, id: `user_${Date.now()}` };
+    const newUser = { ...user, id: `user_${crypto.randomUUID()}` };
     this.users.push(newUser);
     this.currentUser = newUser;
     return newUser;
@@ -186,7 +186,7 @@ class Store {
     const req = this.requests.find(r => r.id === requestId);
     if (req) {
       const newMsg: ChatMessage = {
-        id: `msg_${Date.now()}`,
+        id: `msg_${crypto.randomUUID()}`,
         senderId,
         senderName,
         message,
