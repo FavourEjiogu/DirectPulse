@@ -9,6 +9,16 @@ interface DoctorPortalProps {
     role: UserRole;
 }
 
+const specialistsList = [
+    'General Medical Doctor',
+    'Paediatrician',
+    'Dentist',
+    'ENT Doctor',
+    'Cardiologist',
+    'Dermatologist',
+    'Psychiatrist'
+];
+
 const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
   const [queue, setQueue] = useState<TriageRequest[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<TriageRequest | null>(null);
@@ -162,16 +172,6 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ role }) => {
           default: return 'bg-gray-400';
       }
   };
-
-  const specialistsList = [
-      'General Medical Doctor',
-      'Paediatrician',
-      'Dentist',
-      'ENT Doctor',
-      'Cardiologist',
-      'Dermatologist',
-      'Psychiatrist'
-  ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)] relative">
