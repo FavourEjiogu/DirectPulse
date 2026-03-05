@@ -1,5 +1,5 @@
 
-import { TriageRequest, User, UserRole, ChatMessage } from "../types";
+import type { TriageRequest, User, UserRole, ChatMessage } from "../types";
 
 // Mock Data Store
 class Store {
@@ -147,6 +147,7 @@ class Store {
 
   getRequests(role: UserRole, userId?: string): TriageRequest[] {
     if (role === 'client') {
+      if (!userId) return [];
       return this.requests.filter(r => r.patientId === userId).sort((a,b) => b.timestamp - a.timestamp);
     }
     
@@ -188,6 +189,7 @@ class Store {
   }
 
   getPatientHistory(patientId: string): TriageRequest[] {
+      if (!patientId) return [];
       return this.requests.filter(r => r.patientId === patientId).sort((a,b) => b.timestamp - a.timestamp);
   }
 
