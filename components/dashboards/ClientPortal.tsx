@@ -4,7 +4,7 @@ import AnalysisResult from '../AnalysisResult';
 import { TriageRequest, User } from '../../types';
 import { appStore } from '../../services/store';
 import { analyzeSymptoms } from '../../services/geminiService';
-import { Clock, CheckCircle, Share2, Download, CreditCard, Lock, Sparkles, MapPin, Truck, UserCircle, Save, FileText, X, Eye, Shield, MessageSquare, Send } from 'lucide-react';
+import { CheckCircle, Share2, Download, CreditCard, Lock, Sparkles, Truck, UserCircle, Save, FileText, X, Eye, Shield, MessageSquare, Send } from 'lucide-react';
 
 interface ClientPortalProps {
   user: User;
