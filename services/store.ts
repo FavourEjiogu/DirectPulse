@@ -1,5 +1,5 @@
 
-import { TriageRequest, User, UserRole, ChatMessage } from "../types";
+import type { TriageRequest, User, UserRole, ChatMessage } from "../types.ts";
 
 // Mock Data Store
 class Store {
@@ -196,7 +196,28 @@ class Store {
     this.triggerToast("Triage analysis started.");
   }
 
-  updateRequest(id: string, updates: Partial<TriageRequest>) {
+  processPayment(requestId: string) {
+    const req = this.requests.find(r => r.id === requestId);
+    if (!req) {
+      this.triggerToast("Error: Request not found.");
+      return;
+    }
+
+    if (req.status !== 'awaiting_payment' && req.status !== 'prescribed') {
+      this.triggerToast("Error: Request is not in a payable state.");
+      return;
+    }
+
+    // Secure simulated payment verification
+    this.updateRequest(requestId, { status: 'paid' }, true);
+  }
+
+  updateRequest(id: string, updates: Partial<TriageRequest>, internal: boolean = false) {
+    if (updates.status === 'paid' && !internal) {
+        this.triggerToast("Security Error: Payment verification required.");
+        throw new Error("Security Violation: Direct payment status update attempted.");
+    }
+
     const index = this.requests.findIndex(r => r.id === id);
     if (index !== -1) {
       this.requests[index] = { ...this.requests[index], ...updates };
