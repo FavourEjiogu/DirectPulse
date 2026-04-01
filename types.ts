@@ -36,6 +36,7 @@ export interface PatientProfile {
   dob: string;
   pfpUrl?: string; // Unlocked feature
   privateNotes?: string; // Local user notes
+  selectedInsurancePlans?: string[]; // IDs of selected insurance plans
 }
 
 export interface User {
@@ -47,6 +48,7 @@ export interface User {
   password?: string; // For mock auth
   profile?: PatientProfile;
   hasDeliveredOrder?: boolean; // To unlock PFP
+  hospitalId?: string; // For multi-tenant support
 }
 
 export type RequestStatus = 'pending_triage' | 'triaged' | 'prescribed' | 'awaiting_payment' | 'paid' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered';
@@ -66,6 +68,7 @@ export interface TriageRequest {
   patientName: string;
   symptoms: string;
   timestamp: number;
+  hospitalId?: string; // Selected hospital
   status: RequestStatus;
   severity: SeverityLevel;
   aiAnalysis?: TriageResponse;
