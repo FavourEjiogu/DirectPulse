@@ -4,6 +4,7 @@ import AnalysisResult from '../AnalysisResult';
 import { TriageRequest, User } from '../../types';
 import { appStore } from '../../services/store';
 import { analyzeSymptoms } from '../../services/geminiService';
+import { insurancePlans } from '../../utils/insurancePlans';
 import { Clock, CheckCircle, Share2, Download, CreditCard, Lock, Sparkles, MapPin, Truck, UserCircle, Save, FileText, X, Eye, Shield, MessageSquare, Send } from 'lucide-react';
 
 interface ClientPortalProps {
@@ -31,8 +32,11 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
       hmoNumber: user.profile?.hmoNumber || '',
       emergencyContactName: user.profile?.emergencyContactName || '',
       emergencyContactPhone: user.profile?.emergencyContactPhone || '',
-      privateNotes: user.profile?.privateNotes || ''
+      privateNotes: user.profile?.privateNotes || '',
+      selectedInsurancePlans: user.profile?.selectedInsurancePlans || []
   });
+
+  const [selectedHospital, setSelectedHospital] = useState('hospital_1');
 
   useEffect(() => {
     const update = () => setHistory(appStore.getRequests('client', user.id));
@@ -64,7 +68,8 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
         chatHistory: [],
         deliveryCode: Math.floor(1000 + Math.random() * 9000).toString(),
         totalCost: 25.00 + (Math.random() * 50), // Mock cost
-        drugImageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=300'
+        drugImageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=300',
+        hospitalId: selectedHospital
       };
       
       appStore.addRequest(newRequest);
@@ -176,7 +181,8 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
               hmoNumber: profileForm.hmoNumber,
               emergencyContactName: profileForm.emergencyContactName,
               emergencyContactPhone: profileForm.emergencyContactPhone,
-              privateNotes: profileForm.privateNotes
+              privateNotes: profileForm.privateNotes,
+              selectedInsurancePlans: profileForm.selectedInsurancePlans
           }
       });
       onRefreshUser();
@@ -247,6 +253,19 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
                   </button>
               </div>
           )}
+
+          <div className="mb-6">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Select Hospital / Provider</label>
+              <select
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-gray-900 shadow-sm"
+                  value={selectedHospital}
+                  onChange={(e) => setSelectedHospital(e.target.value)}
+              >
+                  <option value="hospital_1">City General Hospital</option>
+                  <option value="hospital_2">Mercy Medical Center</option>
+              </select>
+          </div>
+
           <SymptomInput onAnalyze={handleAnalyze} isLoading={loading} />
           
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
@@ -482,6 +501,39 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
                         value={profileForm.privateNotes}
                         onChange={e => setProfileForm({...profileForm, privateNotes: e.target.value})}
                       />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-2 mb-4">
+                          <Shield size={16} className="text-teal-600"/>
+                          <label className="block text-sm font-bold text-gray-700">Insurance Plans</label>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4">Select the insurance plans you wish to subscribe to or have active.</p>
+                      <div className="space-y-3 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
+                          {insurancePlans.map(plan => {
+                              const isSelected = profileForm.selectedInsurancePlans.includes(plan.id);
+                              return (
+                                  <div key={plan.id} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-200'}`} onClick={() => {
+                                      const newPlans = isSelected
+                                          ? profileForm.selectedInsurancePlans.filter(id => id !== plan.id)
+                                          : [...profileForm.selectedInsurancePlans, plan.id];
+                                      setProfileForm({...profileForm, selectedInsurancePlans: newPlans});
+                                  }}>
+                                      <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-gray-900 text-sm">{plan.name}</span>
+                                            <span className="text-[10px] uppercase font-bold text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-200">{plan.category}</span>
+                                          </div>
+                                          <p className="text-xs text-gray-500">{plan.provider}</p>
+                                      </div>
+                                      <div className="text-right">
+                                          <p className="font-bold text-teal-700 text-sm">₦{plan.price.toLocaleString()}</p>
+                                          {isSelected && <span className="text-[10px] text-teal-600 font-bold">Selected</span>}
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
                   </div>
 
                   <div className="pt-4 flex justify-end">
