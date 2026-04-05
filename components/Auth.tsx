@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { UserRole, User } from '../types';
 import SpecialistGrid from './SpecialistGrid';
 import { appStore } from '../services/store';
-import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Upload, Sparkles, Check, Play, Star, ShieldCheck, HelpCircle, Activity, ChevronDown, Stethoscope, Pill, Truck, Brain, CheckCircle } from 'lucide-react';
+import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Check, Play, Star, ShieldCheck, Activity, ChevronDown, Stethoscope, Truck, Brain, CheckCircle } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
