@@ -86,7 +86,7 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
   const handlePay = (reqId: string) => {
       setPaymentProcessing(reqId);
       setTimeout(() => {
-          appStore.updateRequest(reqId, { status: 'paid' });
+          appStore.processPayment(reqId);
           setPaymentProcessing(null);
       }, 2000);
   };
