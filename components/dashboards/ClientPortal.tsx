@@ -7,6 +7,17 @@ import { analyzeSymptoms } from '../../services/geminiService';
 import { insurancePlans } from '../../utils/insurancePlans';
 import { Clock, CheckCircle, Share2, Download, CreditCard, Lock, Sparkles, MapPin, Truck, UserCircle, Save, FileText, X, Eye, Shield, MessageSquare, Send } from 'lucide-react';
 
+// Utility function to escape HTML entities and prevent XSS
+const escapeHTML = (str: string | undefined | null): string => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 interface ClientPortalProps {
   user: User;
   onRefreshUser: () => void;
@@ -125,32 +136,32 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ user, onRefreshUser }) => {
           <div class="header">
             <div class="logo">DirectPulse Medical Report</div>
             <div style="text-align: right;">
-              <div>Date: ${new Date(req.timestamp).toLocaleDateString()}</div>
-              <div>ID: ${req.id}</div>
+              <div>Date: ${escapeHTML(new Date(req.timestamp).toLocaleDateString())}</div>
+              <div>ID: ${escapeHTML(req.id)}</div>
             </div>
           </div>
 
           <div class="section">
             <div class="section-title">Patient Details</div>
             <div class="content">
-              <strong>Name:</strong> ${req.patientName}<br/>
-              <strong>Patient ID:</strong> ${req.patientId}
+              <strong>Name:</strong> ${escapeHTML(req.patientName)}<br/>
+              <strong>Patient ID:</strong> ${escapeHTML(req.patientId)}
             </div>
           </div>
 
           <div class="section">
             <div class="section-title">Reported Symptoms</div>
-            <div class="content highlight">${req.symptoms}</div>
+            <div class="content highlight">${escapeHTML(req.symptoms)}</div>
           </div>
 
           <div class="section">
             <div class="section-title">AI Triage Analysis</div>
             <div class="content">
-              <strong>Department:</strong> ${req.aiAnalysis?.recommended_department || 'N/A'}<br/>
-              <p>${req.aiAnalysis?.patient_summary || 'N/A'}</p>
+              <strong>Department:</strong> ${escapeHTML(req.aiAnalysis?.recommended_department) || 'N/A'}<br/>
+              <p>${escapeHTML(req.aiAnalysis?.patient_summary) || 'N/A'}</p>
               <strong>Potential Conditions:</strong>
               <ul>
-                ${req.aiAnalysis?.ai_preliminary_analysis.map(i => `<li>${i}</li>`).join('') || 'N/A'}
+                ${req.aiAnalysis?.ai_preliminary_analysis.map(i => `<li>${escapeHTML(i)}</li>`).join('') || 'N/A'}
               </ul>
             </div>
           </div>
