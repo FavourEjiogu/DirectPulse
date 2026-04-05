@@ -5,6 +5,19 @@ import SpecialistGrid from './SpecialistGrid';
 import { appStore } from '../services/store';
 import { User as UserIcon, Lock, Mail, Phone, HeartPulse, CreditCard, ArrowRight, Upload, Sparkles, Check, Play, Star, ShieldCheck, HelpCircle, Activity, ChevronDown, Stethoscope, Pill, Truck, Brain, CheckCircle } from 'lucide-react';
 
+const WHOLESOME_IMAGES = [
+  "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1551884170-09fb70a3a2ed?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1516574187841-69301976e499?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1576091160550-2187d80aeff2?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1536682932055-dc022a8a34a8?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&q=80&w=500",
+  "https://images.unsplash.com/photo-1581056771107-24ca5f033842?auto=format&fit=crop&q=80&w=500",
+];
+
+const EXTENDED_WHOLESOME_IMAGES = [...WHOLESOME_IMAGES, ...WHOLESOME_IMAGES, ...WHOLESOME_IMAGES];
+
 interface AuthProps {
   onLogin: (user: User) => void;
 }
@@ -72,17 +85,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       'https://api.dicebear.com/7.x/avataaars/svg?seed=Jane',
       'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
       'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice'
-  ];
-
-  const wholesomeImages = [
-    "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1551884170-09fb70a3a2ed?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1516574187841-69301976e499?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1576091160550-2187d80aeff2?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1536682932055-dc022a8a34a8?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&q=80&w=500",
-    "https://images.unsplash.com/photo-1581056771107-24ca5f033842?auto=format&fit=crop&q=80&w=500",
   ];
 
   // --- Views ---
@@ -206,7 +208,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             
             <div className="relative w-full overflow-hidden">
                 <div className="flex gap-8 animate-marquee w-max">
-                    {[...wholesomeImages, ...wholesomeImages, ...wholesomeImages].map((url, idx) => (
+                    {EXTENDED_WHOLESOME_IMAGES.map((url, idx) => (
                         <div key={idx} className="w-80 h-56 rounded-2xl overflow-hidden shadow-lg flex-shrink-0 group">
                             <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="Wholesome medical moment" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
